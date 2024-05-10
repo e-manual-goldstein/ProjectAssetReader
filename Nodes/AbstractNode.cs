@@ -8,7 +8,7 @@ using System.Linq;
 public abstract class AbstractNode : IPrunable
 {
     string _uniqueId;
-    private Target _target;
+    private HashSet<Target> _targets = [];
 
     public AbstractNode(string nodeName)
     {
@@ -35,7 +35,7 @@ public abstract class AbstractNode : IPrunable
 
     public void AddTarget(Target target)
     {
-        _target = target;
+        _targets.Add(target);
     }
 
     internal void AddDependent(AbstractNode dependent)

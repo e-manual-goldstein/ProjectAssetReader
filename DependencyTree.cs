@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml.Linq;
 
 public class DependencyTree : IPrunable
 {
@@ -23,18 +24,19 @@ public class DependencyTree : IPrunable
         foreach (var projectAsset in _projectAssetsSet)
         {
             var projectName = projectAsset.Project.Restore.ProjectName;
-            var projectNode = _allNodes.GetOrAdd(projectName, (id) => new ProjectNode(id));
+            var projectNode = _allNodes.GetOrAdd($"{projectName}/1.0.0", (id) => new ProjectNode(id));
             foreach (var (frameworkVersion, targets) in projectAsset.Targets)
             {
                 foreach (var (packageId, target) in targets)
                 {
                     AbstractNode node = GetNode(packageId, target);
+                    node.AddTarget(target);
                     projectNode.AddDependency(node);
                     node.AddDependent(projectNode);
                     foreach (var dependency in target.Dependencies)
                     {
                         var dependencyId = $"{dependency.Key}/{dependency.Value}";
-                        var dependencyNode = _allNodes.GetOrAdd(dependencyId, (id) => new DependencyNode(id));
+                        var dependencyNode = _allNodes.GetOrAdd(dependencyId, (id) => new PackageNode(id));
                         dependencyNode.AddDependent(node);
                         node.AddDependency(dependencyNode);
                     }
@@ -58,12 +60,12 @@ public class DependencyTree : IPrunable
     {
         if (target.Type == "package")
         {
-            return new PackageNode(id, target);            
+            var node = new PackageNode(id);            
+            return node;
         }
         else if (target.Type == "project")
         {
             var node = new ProjectNode(id);
-            node.AddTarget(target);
             return node;
         }
         throw new NotImplementedException();
@@ -84,8 +86,8 @@ public class DependencyTree : IPrunable
         return _prunedPackages.Any();
     }
 
-    public AbstractNode[] AllPackages => _allNodes.Values.OfType<PackageNode>().ToArray();
-    public AbstractNode[] OrderedPackages => _allNodes.Values.OrderByDescending(e => e.TransitiveDependents.Length).ToArray();
+    public PackageNode[] AllPackages => _allNodes.Values.OfType<PackageNode>().ToArray();
+    public PackageNode[] OrderedPackages => _allNodes.Values.OfType<PackageNode>().OrderByDescending(e => e.TransitiveDependents.Length).ToArray();
     public AbstractNode[] PrunedPackages => _allNodes.Values.Where(e => e.Pruned).ToArray();
     public AbstractNode[] UnPrunedPackages => _allNodes.Values.Where(e => !e.Pruned && e is PackageNode).ToArray();
     

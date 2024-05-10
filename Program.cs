@@ -63,11 +63,15 @@ class Program
 
     private static void ExecuteFullDirectoryDiagnostic(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets)
     {
+        char delimiter = '\t';
         var dependencyTree = CreateDependencyTree(projectAssets);
-        foreach (var group in dependencyTree.AllPackages.GroupBy(p => p.UniqueId.Split('/')[0]).OrderByDescending(d => d.ToArray().Length))
+        ConsoleTable.SetHeaders($"Package Name{delimiter}Versions");
+        foreach (var group in dependencyTree.AllPackages.Where(d => d.Name.StartsWith("Sdm", StringComparison.OrdinalIgnoreCase)).GroupBy(p => p.UniqueId.Split('/')[0]).OrderByDescending(d => d.ToArray().Length))
         {
-            Console.WriteLine($"{group.Key}\t{group.Distinct().ToArray().Length}");
-        }        
+            ConsoleTable.AddLine($"{group.Key}{delimiter}{group.Distinct().ToArray().Length}");
+            //Console.WriteLine($"{group.Key}\t{group.Distinct().ToArray().Length}");
+        }
+        ConsoleTable.ShowOutput();
     }
 
     private static void ExecuteFullPackageDiagnostic(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets, string packageName)
