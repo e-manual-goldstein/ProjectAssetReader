@@ -66,7 +66,8 @@ class Program
         char delimiter = '\t';
         var dependencyTree = CreateDependencyTree(projectAssets);
         ConsoleTable.SetHeaders($"Package Name{delimiter}Versions");
-        foreach (var group in dependencyTree.AllPackages.Where(d => d.Name.StartsWith("Sdm", StringComparison.OrdinalIgnoreCase)).GroupBy(p => p.UniqueId.Split('/')[0]).OrderByDescending(d => d.ToArray().Length))
+        foreach (var group in dependencyTree.AllPackages.Where(d => d.Name.StartsWith("Sdm", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(p => p.Name).OrderByDescending(d => d.ToArray().Length))
         {
             ConsoleTable.AddLine($"{group.Key}{delimiter}{group.Distinct().ToArray().Length}");
             //Console.WriteLine($"{group.Key}\t{group.Distinct().ToArray().Length}");

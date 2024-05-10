@@ -1,6 +1,5 @@
 ﻿
 using ProjectAssetReader.Model;
-using ProjectAssetReader.Nodes;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -9,8 +8,8 @@ using System.Xml.Linq;
 
 public class DependencyTree : IPrunable
 {
-    ConcurrentDictionary<string, AbstractNode> _allNodes = new ConcurrentDictionary<string, AbstractNode>();
-    Dictionary<string, AbstractNode> _prunedPackages;
+    ConcurrentDictionary<string, DependencyNode> _allNodes = new ConcurrentDictionary<string, DependencyNode>();
+    Dictionary<string, DependencyNode> _prunedPackages;
     
     ProjectAssetsConfiguration[] _projectAssetsSet;
 
@@ -24,19 +23,19 @@ public class DependencyTree : IPrunable
         foreach (var projectAsset in _projectAssetsSet)
         {
             var projectName = projectAsset.Project.Restore.ProjectName;
-            var projectNode = _allNodes.GetOrAdd($"{projectName}/1.0.0", (id) => new ProjectNode(id));
+            var projectNode = _allNodes.GetOrAdd($"{projectName}/1.0.0", (id) => new DependencyNode(id, NodeType.Project));
             foreach (var (frameworkVersion, targets) in projectAsset.Targets)
             {
                 foreach (var (packageId, target) in targets)
                 {
-                    AbstractNode node = GetNode(packageId, target);
+                    DependencyNode node = GetNode(packageId, target);
                     node.AddTarget(target);
                     projectNode.AddDependency(node);
                     node.AddDependent(projectNode);
                     foreach (var dependency in target.Dependencies)
                     {
                         var dependencyId = $"{dependency.Key}/{dependency.Value}";
-                        var dependencyNode = _allNodes.GetOrAdd(dependencyId, (id) => new PackageNode(id));
+                        var dependencyNode = _allNodes.GetOrAdd(dependencyId, (id) => new DependencyNode(id, NodeType.Unknown));
                         dependencyNode.AddDependent(node);
                         node.AddDependency(dependencyNode);
                     }
@@ -48,27 +47,33 @@ public class DependencyTree : IPrunable
 
     private void CloneTree()
     {
-        _prunedPackages = new Dictionary<string, AbstractNode>(_allNodes);
+        _prunedPackages = new Dictionary<string, DependencyNode>(_allNodes);
     }
 
-    private AbstractNode GetNode(string packageId, Target target)
+    private DependencyNode GetNode(string packageId, Target target)
     {
-        return _allNodes.GetOrAdd(packageId, (id) => CreateNode(id, target));
+        var node = _allNodes.GetOrAdd(packageId, (id) => CreateNode(id, target));
+        node.NodeType = GetNodeType(target);
+        return node;
     }
 
-    private AbstractNode CreateNode(string id, Target target)
+    private NodeType GetNodeType(Target target)
     {
-        if (target.Type == "package")
+        switch (target.Type)
         {
-            var node = new PackageNode(id);            
-            return node;
+            case "package":
+                return NodeType.Package;
+            case "project":
+                return NodeType.Project;
+            default:
+                break;
         }
-        else if (target.Type == "project")
-        {
-            var node = new ProjectNode(id);
-            return node;
-        }
-        throw new NotImplementedException();
+        return NodeType.Unknown;
+    }
+
+    private DependencyNode CreateNode(string id, Target target)
+    {
+        return new DependencyNode(id, GetNodeType(target));
     }
 
     public bool PruneToTargetVersion(string packageName, string requiredVersion)
@@ -86,9 +91,10 @@ public class DependencyTree : IPrunable
         return _prunedPackages.Any();
     }
 
-    public PackageNode[] AllPackages => _allNodes.Values.OfType<PackageNode>().ToArray();
-    public PackageNode[] OrderedPackages => _allNodes.Values.OfType<PackageNode>().OrderByDescending(e => e.TransitiveDependents.Length).ToArray();
-    public AbstractNode[] PrunedPackages => _allNodes.Values.Where(e => e.Pruned).ToArray();
-    public AbstractNode[] UnPrunedPackages => _allNodes.Values.Where(e => !e.Pruned && e is PackageNode).ToArray();
+    public DependencyNode[] AllPackages => _allNodes.Values.Where(d => d.NodeType == NodeType.Package).ToArray();
+    public DependencyNode[] OrderedPackages => AllPackages.OrderByDescending(e => e.TransitiveDependents.Length).ToArray();
+
+    public DependencyNode[] PrunedPackages => _allNodes.Values.Where(e => e.Pruned).ToArray();
+    public DependencyNode[] UnPrunedPackages => _allNodes.Values.Where(e => !e.Pruned && e is DependencyNode).ToArray();
     
 }
