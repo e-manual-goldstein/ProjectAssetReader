@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 
 [DebuggerDisplay("{UniqueId}")]
-public class DependencyNode : IPrunable
+public class DependencyNode
 {
     string _uniqueId;
     private HashSet<Target> _targets = [];
@@ -44,8 +44,6 @@ public class DependencyNode : IPrunable
     }
     public string UniqueId => _uniqueId;
 
-    public bool Pruned {  get; set; }
-
     public void AddTarget(Target target)
     {
         _targets.Add(target);
@@ -65,25 +63,5 @@ public class DependencyNode : IPrunable
         {
             _dependencies.Add(dependencyNode.UniqueId, dependencyNode);
         }
-    }
-
-    public bool PruneToTargetVersion(string packageName, string requiredVersion)
-    {
-        if (Pruned)
-        {
-            return false; //already pruned
-        }
-        return Pruned = CanPrune(packageName, requiredVersion);
-    }
-
-    private bool CanPrune(string packageName, string requiredVersion)
-    {
-        return !HasId(packageName, requiredVersion) &&
-            !_dependencies.Values.Any(d => !d.CanPrune(packageName, requiredVersion));
-    }
-
-    private bool HasId(string packageName, string requiredVersion)
-    {
-        return UniqueId.Equals($"{packageName}/{requiredVersion}");
     }
 }

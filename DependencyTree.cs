@@ -6,10 +6,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Xml.Linq;
 
-public class DependencyTree : IPrunable
+public class DependencyTree
 {
     ConcurrentDictionary<string, DependencyNode> _allNodes = new ConcurrentDictionary<string, DependencyNode>();
-    Dictionary<string, DependencyNode> _prunedPackages;
     
     ProjectAssetsConfiguration[] _projectAssetsSet;
 
@@ -42,12 +41,6 @@ public class DependencyTree : IPrunable
                 }
             }
         }
-        CloneTree();
-    }
-
-    private void CloneTree()
-    {
-        _prunedPackages = new Dictionary<string, DependencyNode>(_allNodes);
     }
 
     private DependencyNode GetNode(string packageId, Target target)
@@ -76,25 +69,8 @@ public class DependencyTree : IPrunable
         return new DependencyNode(id, GetNodeType(target));
     }
 
-    public bool PruneToTargetVersion(string packageName, string requiredVersion)
-    {
-        bool continuePruning = true;
-        while (_prunedPackages.Any(d => !d.Value.Pruned) && continuePruning)
-        {
-            continuePruning = false;
-            foreach (var (pacakgeId, prunable) in _prunedPackages.Where(d => !d.Value.Pruned))
-            {
-                continuePruning |= prunable.PruneToTargetVersion(packageName, requiredVersion);
-                
-            }
-        }
-        return _prunedPackages.Any();
-    }
-
     public DependencyNode[] AllPackages => _allNodes.Values.Where(d => d.NodeType == NodeType.Package).ToArray();
     public DependencyNode[] OrderedPackages => AllPackages.OrderByDescending(e => e.TransitiveDependents.Length).ToArray();
 
-    public DependencyNode[] PrunedPackages => _allNodes.Values.Where(e => e.Pruned && e.NodeType == NodeType.Package).ToArray();
-    public DependencyNode[] UnPrunedPackages => _allNodes.Values.Where(e => !e.Pruned && e.NodeType == NodeType.Package).ToArray();
     
 }
