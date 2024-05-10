@@ -61,6 +61,13 @@ class Program
         }
     }
 
+    private static DependencyTree CreateDependencyTree(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets)
+    {
+        var dependencyTree = new DependencyTree(projectAssets.Values.ToArray());
+        dependencyTree.BuildTree();
+        return dependencyTree;
+    }
+
     private static void ExecuteFullDirectoryDiagnostic(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets)
     {
         char delimiter = '\t';
@@ -77,61 +84,34 @@ class Program
 
     private static void ExecuteFullPackageDiagnostic(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets, string packageName)
     {
+        var dependencyTree = CreateDependencyTree(projectAssets);
         //Find All required Package Versions
-        var requiredVersions = GetRequiredVersionsForPackage(projectAssets, packageName).Distinct().ToArray();
+        var requiredVersions = dependencyTree.AllPackages.Where(p => p.Name.Equals(packageName)).Select(d => d.Version);
         //Print Full Report for each requirement (why do I need this package?)
         foreach (var requiredVersion in requiredVersions)
         {
-            var dependencyTree = CreateDependencyTree(projectAssets) as IPrunable;
-            dependencyTree.PruneToTargetVersion(packageName, requiredVersion);
-        }
-    }
-
-    private static DependencyTree CreateDependencyTree(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets)
-    {
-        var dependencyTree = new DependencyTree(projectAssets.Values.ToArray());
-        dependencyTree.BuildTree();
-        return dependencyTree;
-    }
-
-    private static IEnumerable<string> GetRequiredVersionsForPackage(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets, string packageName)
-    {
-        foreach (var (projectName, value) in projectAssets.OrderBy(s => s.Key))
-        {
-            foreach (var (frameworkVersion, versionedTargets) in value.Targets)
+            Console.WriteLine($"{packageName} - {requiredVersion}");
+            var requiredPackage = dependencyTree.AllPackages.Single(p => p.Name.Equals(packageName) && p.Version.Equals(requiredVersion));
+            foreach (var dependent in requiredPackage.Dependents)
             {
-                foreach (var (packageId, target) in versionedTargets)
-                {
-                    var targetName = packageId.Split("/")[0];
-                    if (targetName == packageName)
-                    {
-                        yield return packageId.Split('/')[1];                        
-                    }
-                }
+                Console.WriteLine($"\t{dependent.UniqueId}");
             }
         }
     }
 
     private static void ProcessSpecificPackageVersion(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets, string packageName, string targetVersion)
     {
-        foreach (var (projectName, value) in projectAssets.OrderBy(s => s.Key))
+        var dependencyTree = CreateDependencyTree(projectAssets);
+
+        foreach (var package in dependencyTree.AllPackages.Where(p => p.Name.Equals(packageName) && CheckVersion(targetVersion, p.Version)))
         {
-            foreach (var (frameworkVersion, versionedTargets) in value.Targets)
+            Console.WriteLine($"{packageName} - {package.Version}");
+            foreach (var dependent in package.Dependents)
             {
-                foreach (var (packageId, target) in versionedTargets)
-                {
-                    var targetName = packageId.Split("/")[0];
-                    if (targetName == packageName)
-                    {
-                        var version = packageId.Split("/")[1];
-                        if (CheckVersion(targetVersion, version))
-                        {
-                            Console.WriteLine($"{frameworkVersion}\t{projectName}\t{targetName}\t{version}");
-                        }
-                    }
-                }
+                Console.WriteLine($"\t{dependent.UniqueId}");
             }
         }
+        
     }
 
     private static ConcurrentDictionary<string, ProjectAssetsConfiguration> GenerateProjectAssets(string rootFilePath)

@@ -94,7 +94,7 @@ public class DependencyTree : IPrunable
     public DependencyNode[] AllPackages => _allNodes.Values.Where(d => d.NodeType == NodeType.Package).ToArray();
     public DependencyNode[] OrderedPackages => AllPackages.OrderByDescending(e => e.TransitiveDependents.Length).ToArray();
 
-    public DependencyNode[] PrunedPackages => _allNodes.Values.Where(e => e.Pruned).ToArray();
-    public DependencyNode[] UnPrunedPackages => _allNodes.Values.Where(e => !e.Pruned && e is DependencyNode).ToArray();
+    public DependencyNode[] PrunedPackages => _allNodes.Values.Where(e => e.Pruned && e.NodeType == NodeType.Package).ToArray();
+    public DependencyNode[] UnPrunedPackages => _allNodes.Values.Where(e => !e.Pruned && e.NodeType == NodeType.Package).ToArray();
     
 }
