@@ -1,10 +1,8 @@
 ﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using ProjectAssetReader;
 using ProjectAssetReader.Model;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -45,16 +43,17 @@ class Program
     private static void ProcessPackageDependencies(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets, 
         string packageName, string targetVersion, DiagnosticMode diagnosticMode)
     {
+        var dependencyTree = CreateDependencyTree(projectAssets);
         switch (diagnosticMode)
         {
             case DiagnosticMode.FullDirectory:
-                ExecuteFullDirectoryDiagnostic(projectAssets);
+                ExecuteFullDirectoryDiagnostic(dependencyTree);
                 break;
             case DiagnosticMode.FullPackage:
-                ExecuteFullPackageDiagnostic(projectAssets, packageName);
+                ExecuteFullPackageDiagnostic(dependencyTree, packageName);
                 break;
             case DiagnosticMode.SpecificPackage:
-                ProcessSpecificPackageVersion(projectAssets, packageName, targetVersion);
+                ProcessSpecificPackageVersion(dependencyTree, packageName, targetVersion);
                 break;
             default:
                 break;
@@ -68,13 +67,12 @@ class Program
         return dependencyTree;
     }
 
-    private static void ExecuteFullDirectoryDiagnostic(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets)
+    private static void ExecuteFullDirectoryDiagnostic(DependencyTree dependencyTree)
     {
         char delimiter = '\t';
-        var dependencyTree = CreateDependencyTree(projectAssets);
+        
         ConsoleTable.SetHeaders($"Package Name{delimiter}Versions");
-        foreach (var group in dependencyTree.AllPackages.Where(d => d.Name.StartsWith("Sdm", StringComparison.OrdinalIgnoreCase))
-            .GroupBy(p => p.Name).OrderByDescending(d => d.ToArray().Length))
+        foreach (var group in dependencyTree.AllPackages.GroupBy(p => p.Name).OrderByDescending(d => d.ToArray().Length))
         {
             ConsoleTable.AddLine($"{group.Key}{delimiter}{group.Distinct().ToArray().Length}");
             //Console.WriteLine($"{group.Key}\t{group.Distinct().ToArray().Length}");
@@ -82,9 +80,9 @@ class Program
         ConsoleTable.ShowOutput();
     }
 
-    private static void ExecuteFullPackageDiagnostic(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets, string packageName)
+    private static void ExecuteFullPackageDiagnostic(DependencyTree dependencyTree, string packageName)
     {
-        var dependencyTree = CreateDependencyTree(projectAssets);
+        
         //Find All required Package Versions
         var requiredVersions = dependencyTree.AllPackages.Where(p => p.Name.Equals(packageName)).Select(d => d.Version);
         //Print Full Report for each requirement (why do I need this package?)
@@ -99,19 +97,28 @@ class Program
         }
     }
 
-    private static void ProcessSpecificPackageVersion(ConcurrentDictionary<string, ProjectAssetsConfiguration> projectAssets, string packageName, string targetVersion)
+    private static void ProcessSpecificPackageVersion(DependencyTree dependencyTree, string packageName, string targetVersion)
     {
-        var dependencyTree = CreateDependencyTree(projectAssets);
-
-        foreach (var package in dependencyTree.AllPackages.Where(p => p.Name.Equals(packageName) && CheckVersion(targetVersion, p.Version)))
+        
+        foreach (var node in dependencyTree.AllPackages.Where(p => p.Name.Equals(packageName) && CheckVersion(targetVersion, p.Version)))
         {
-            Console.WriteLine($"{packageName} - {package.Version}");
-            foreach (var dependent in package.Dependents)
+            Console.WriteLine($"{packageName} - {node.Version}");
+            ShowDependents(node, 1);
+        }
+
+    }
+
+    private static void ShowDependents(DependencyNode node, int depth)
+    {
+        string indent = new string('\t', depth);
+        foreach (var dependent in node.Dependents)
+        {
+            Console.WriteLine($"{indent}{dependent.UniqueId}");
+            if (dependent.NodeType == NodeType.Package)
             {
-                Console.WriteLine($"\t{dependent.UniqueId}");
+                ShowDependents(dependent, depth + 1);
             }
         }
-        
     }
 
     private static ConcurrentDictionary<string, ProjectAssetsConfiguration> GenerateProjectAssets(string rootFilePath)

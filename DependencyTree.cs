@@ -45,7 +45,7 @@ public class DependencyTree
 
     private DependencyNode GetNode(string packageId, Target target)
     {
-        var node = _allNodes.GetOrAdd(packageId, (id) => CreateNode(id, target));
+        var node = _allNodes.GetOrAdd(packageId, (id) => CreateNodeForTarget(id, target));
         node.NodeType = GetNodeType(target);
         return node;
     }
@@ -64,10 +64,12 @@ public class DependencyTree
         return NodeType.Unknown;
     }
 
-    private DependencyNode CreateNode(string id, Target target)
+    private DependencyNode CreateNodeForTarget(string id, Target target)
     {
         return new DependencyNode(id, GetNodeType(target));
     }
+
+    public DependencyNode[] AllNodes => _allNodes.Values.ToArray();
 
     public DependencyNode[] AllPackages => _allNodes.Values.Where(d => d.NodeType == NodeType.Package).ToArray();
     public DependencyNode[] OrderedPackages => AllPackages.OrderByDescending(e => e.TransitiveDependents.Length).ToArray();
